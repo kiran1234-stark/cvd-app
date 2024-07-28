@@ -113,4 +113,4 @@ def main():
         
 if __name__ == '__main__':
     main()
-    st.caption(":gray[Developed by Keerthi Kiran U] :smiley::sparkles:")
+    st.caption(":gray[Developed by Keerthi Kiran U] :smile::sparkles:")
