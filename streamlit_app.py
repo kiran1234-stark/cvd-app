@@ -71,7 +71,7 @@ def main():
             simulate_degree_sec = st.slider(
                 "Simulation Degree (Secondary):", 0.0, 1.0, 1.0, 0.1)
         
-        correct_image = st.checkbox("Correct Image for Colorblindness")
+        correct_image = st.checkbox("Correct Image for Colorblindness",value=True)
         
         if st.button("Run"):
             with st.spinner('Processing...'):
