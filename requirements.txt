@@ -4,3 +4,4 @@ numpy
 torch
 PIL
 transformers
+python
