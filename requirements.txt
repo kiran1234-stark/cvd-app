@@ -3,4 +3,4 @@ opencv_python
 numpy
 torch
 transformers
-python
+python==3.8
