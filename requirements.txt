@@ -3,5 +3,5 @@ opencv_python
 numpy
 torch
 transformers
-python==3.8
-pip==24.1.2
+python==3.9
+
