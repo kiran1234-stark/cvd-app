@@ -3,5 +3,6 @@ opencv_python
 numpy
 torch
 transformers
+Pillow
 
 
