@@ -1,2 +1,6 @@
 streamlit
 opencv_python
+numpy
+torch
+PIL
+transformers
