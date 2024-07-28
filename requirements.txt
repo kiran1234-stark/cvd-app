@@ -4,4 +4,4 @@ numpy
 torch
 transformers
 python==3.8
---upgrade pip
+pip==24.1.2
