@@ -1,9 +1,79 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-from utils import Transforms, Utils
-from vit_utils import ViTUtils
+from sympy import true
 import tempfile
+from transformers import ViTImageProcessor, ViTModel
+import torch
+
+
+class Transforms:
+    @staticmethod
+    def rgb_to_lms():
+        return np.array([[17.8824, 43.5161, 4.11935],
+                         [3.45565, 27.1554, 3.86714],
+                         [0.0299566, 0.184309, 1.46709]]).T
+
+    @staticmethod
+    def lms_to_rgb():
+        return np.array([[0.0809, -0.1305, 0.1167],
+                         [-0.0102, 0.0540, -0.1136],
+                         [-0.0004, -0.0041, 0.6935]]).T
+
+    @staticmethod
+    def lms_protanopia_sim(degree: float = 1.0):
+        return np.array([[1 - degree, 2.02344 * degree, -2.52581 * degree],
+                         [0, 1, 0],
+                         [0, 0, 1]]).T
+
+    @staticmethod
+    def lms_deutranopia_sim(degree: float = 1.0):
+        return np.array([[1, 0, 0],
+                         [0.494207 * degree, 1 - degree, 1.24827 * degree],
+                         [0, 0, 1]]).T
+
+    @staticmethod
+    def lms_tritanopia_sim(degree: float = 1.0):
+        return np.array([[1, 0, 0],
+                         [0, 1, 0],
+                         [-0.395913 * degree, 0.801109 * degree, 1 - degree]]).T
+    
+    @staticmethod
+    def correction_matrix(protanopia_degree, deutranopia_degree) -> np.ndarray:
+        """
+        Matrix for Correcting Colorblindness (protanomaly + deuteranomaly) from LMS color-space.
+        :param protanopia_degree: Protanomaly degree for correction. If 0, correction is made for Deuteranomally only.
+        :param deutranopia_degree: Deuteranomaly degree for correction. If 0, correction is made for Protanomaly only.
+        """
+        return np.array([[1 - deutranopia_degree/2, deutranopia_degree/2, 0],
+                         [protanopia_degree/2, 1 - protanopia_degree/2, 0],
+                         [protanopia_degree/4, deutranopia_degree/4, 1 - (protanopia_degree + deutranopia_degree)/4]]).T
+
+
+class Utils:
+    @staticmethod
+    def load_rgb(path):
+        img_rgb = np.array(Image.open(path)) / 255
+        return img_rgb
+
+    @staticmethod
+    def load_lms(path):
+        img_rgb = np.array(Image.open(path)) / 255
+        img_lms = np.dot(img_rgb[:,:,:3], Transforms.rgb_to_lms())
+        return img_lms
+
+
+class ViTUtils:
+    def __init__(self):
+        self.processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+        self.model = ViTModel.from_pretrained('google/vit-base-patch16-224')
+
+    def extract_features(self, image):
+        inputs = self.processor(images=image, return_tensors="pt")
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        return outputs.last_hidden_state.squeeze(0).numpy()
+
 
 class Core:
     vit_utils = ViTUtils()
@@ -17,8 +87,8 @@ class Core:
             'Invalid Simulate Type: {}'.format(simulate_type)
 
         img_rgb = Utils.load_rgb(input_path)
-        img_features = Core.vit_utils.extract_features(img_rgb)
-        
+        img_features = Core.vit_utils.extract_features(img_rgb)  # ViT Feature extraction
+
         if simulate_type == 'protanopia':
             transform = Transforms.lms_protanopia_sim(degree=simulate_degree_primary)
         elif simulate_type == 'deutranopia':
@@ -45,72 +115,82 @@ class Core:
         img_corrected = np.uint8(np.dot(img_rgb, transform) * 255)
         return img_corrected
 
+
 def main():
     st.title("ReColorLib: Simulate and Correct Images for Color-Blindness")
-    
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
-    
-    if uploaded_file is not None:
-        input_path = tempfile.NamedTemporaryFile(delete=False).name
-        with open(input_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        
-        image = Image.open(input_path)
-        st.image(image, caption='Uploaded Image.', use_column_width=True)
-        
-        sim_type = st.selectbox(
-            "Select Simulation Type:",
-            ("protanopia", "deutranopia", "tritanopia", "hybrid")
-        )
-        
-        simulate_degree_primary = st.slider(
-            "Simulation Degree (Primary):", 0.0, 1.0, 1.0, 0.1)
-        
-        simulate_degree_sec = 1.0
-        if sim_type == 'hybrid':
-            simulate_degree_sec = st.slider(
-                "Simulation Degree (Secondary):", 0.0, 1.0, 1.0, 0.1)
-        
-        correct_image = st.checkbox("Correct Image for Colorblindness",value=True)
-        
-        if st.button("Run"):
-            with st.spinner('Processing...'):
-                simulated_img = Core.simulate(
-                    input_path=input_path,
-                    simulate_type=sim_type,
-                    simulate_degree_primary=simulate_degree_primary,
-                    simulate_degree_sec=simulate_degree_sec
+
+    try:
+        uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+
+        if uploaded_file is not None:
+            input_path = tempfile.NamedTemporaryFile(delete=False).name
+            try:
+                with open(input_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                image = Image.open(input_path)
+                st.image(image, caption='Uploaded Image.', use_column_width=True)
+
+                sim_type = st.selectbox(
+                    "Select Simulation Type:",
+                    ("protanopia", "deutranopia", "tritanopia", "hybrid")
                 )
-                
-                corrected_img = None
-                if correct_image:
-                    corrected_img = Core.correct(
-                        input_path=input_path,
-                        protanopia_degree=simulate_degree_primary,
-                        deutranopia_degree=simulate_degree_sec
-                    )
-            
-            st.success('Processing completed!')
-            
-            st.image(simulated_img, caption='Simulated Image.', use_column_width=True)
-            
-            tmp_sim = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-            Image.fromarray(simulated_img).save(tmp_sim.name)
-            st.download_button(label="Download Simulated Image",
-                               data=open(tmp_sim.name, 'rb').read(),
-                               file_name='simulated_image.png',
-                               mime='image/png')
-            
-            if corrected_img is not None:
-                st.image(corrected_img, caption='Corrected Image.', use_column_width=True)
-                
-                tmp_corr = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                Image.fromarray(corrected_img).save(tmp_corr.name)
-                st.download_button(label="Download Corrected Image",
-                                   data=open(tmp_corr.name, 'rb').read(),
-                                   file_name='corrected_image.png',
-                                   mime='image/png')
-        
+
+                simulate_degree_primary = st.slider(
+                    "Simulation Degree (Primary):", 0.0, 1.0, 1.0, 0.1)
+
+                simulate_degree_sec = 1.0
+                if sim_type == 'hybrid':
+                    simulate_degree_sec = st.slider(
+                        "Simulation Degree (Secondary):", 0.0, 1.0, 1.0, 0.1)
+
+                correct_image = st.checkbox("Correct Image for Colorblindness")
+
+                if st.button("Run"):
+                    with st.spinner('Processing...'):
+                        try:
+                            simulated_img = Core.simulate(
+                                input_path=input_path,
+                                simulate_type=sim_type,
+                                simulate_degree_primary=simulate_degree_primary,
+                                simulate_degree_sec=simulate_degree_sec
+                            )
+
+                            corrected_img = None
+                            if correct_image:
+                                corrected_img = Core.correct(
+                                    input_path=input_path,
+                                    protanopia_degree=simulate_degree_primary,
+                                    deutranopia_degree=simulate_degree_sec
+                                )
+
+                        except Exception as e:
+                            st.error(f"Error during image processing: {e}")
+                            return
+
+                    st.success('Processing completed!')
+
+                    # Display the images and download options
+                    display_and_download(simulated_img, 'Simulated Image', 'simulated_image.png')
+                    if corrected_img is not None:
+                        display_and_download(corrected_img, 'Corrected Image', 'corrected_image.png')
+
+            except IOError:
+                st.error("Error handling the file. Please try again with a valid image.")
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+
+
+def display_and_download(image_array, caption, file_name):
+    st.image(image_array, caption=caption, use_column_width=True)
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+    Image.fromarray(image_array).save(tmp_file.name)
+    st.download_button(label=f"Download {caption}",
+                       data=open(tmp_file.name, 'rb').read(),
+                       file_name=file_name,
+                       mime='image/png')
+
+
 if __name__ == '__main__':
     main()
-    st.caption(":gray[Developed by Keerthi Kiran U] :smile::sparkles:")
