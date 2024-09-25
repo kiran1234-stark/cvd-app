@@ -48,7 +48,16 @@ class Transforms:
         return np.array([[1 - deutranopia_degree/2, deutranopia_degree/2, 0],
                          [protanopia_degree/2, 1 - protanopia_degree/2, 0],
                          [protanopia_degree/4, deutranopia_degree/4, 1 - (protanopia_degree + deutranopia_degree)/4]]).T
-
+    @staticmethod
+    def hybrid_protanomaly_deuteranomaly_sim(degree_p: float = 1.0, degree_d: float = 1.0) -> np.ndarray:
+        """
+        Matrix for Simulating Hybrid Colorblindness (protanomaly + deuteranomaly) from LMS color-space.
+        :param degree_p: protanomaly degree.
+        :param degree_d: deuteranomaly degree.
+        """
+        return np.array([[1 - degree_p, 2.02344 * degree_p, -2.52581 * degree_p],
+                         [0.494207 * degree_d, 1 - degree_d, 1.24827 * degree_d],
+                         [0, 0, 1]]).T
 
 class Utils:
     @staticmethod
