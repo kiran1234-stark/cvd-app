@@ -1,11 +1,9 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-from sympy import true
 import tempfile
-from transformers import ViTImageProcessor, ViTModel
+from transformers import AutoImageProcessor, ViTModel
 import torch
-
 
 class Transforms:
     @staticmethod
@@ -74,7 +72,7 @@ class Utils:
 
 class ViTUtils:
     def __init__(self):
-        self.processor = ViTImageProcessor.from_pretrained('google/vit-base-patch16-224')
+        self.processor = AutoImageProcessor.from_pretrained('google/vit-base-patch16-224')
         self.model = ViTModel.from_pretrained('google/vit-base-patch16-224')
 
     def extract_features(self, image):
@@ -138,7 +136,7 @@ def main():
                     f.write(uploaded_file.getbuffer())
 
                 image = Image.open(input_path)
-                st.image(image, caption='Uploaded Image.', use_column_width=True)
+                st.image(image, caption='Uploaded Image.', use_container_width=True)
 
                 sim_type = st.selectbox(
                     "Select Simulation Type:",
@@ -191,7 +189,7 @@ def main():
 
 
 def display_and_download(image_array, caption, file_name):
-    st.image(image_array, caption=caption, use_column_width=True)
+    st.image(image_array, caption=caption, use_container_width=True)
 
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
     Image.fromarray(image_array).save(tmp_file.name)
